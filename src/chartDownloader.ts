@@ -57,7 +57,6 @@ export class ChartDownloader {
   private static nextJobId = 1
 
   private id: number = ChartDownloader.nextJobId++
-  private maxZoom = 15
   private status: Status = Status.Stopped
   private totalTiles = 0
   private downloadedTiles = 0
@@ -101,7 +100,6 @@ export class ChartDownloader {
     this.totalTiles = this.tiles.length
     this.cachedTiles = this.totalTiles - this.tilesToDownload.length
     this.areaDescription = `Region: ${region?.name ?? ''}`
-    this.maxZoom = maxZoom
   }
 
   public async initializeJobFromBBox(
@@ -115,7 +113,6 @@ export class ChartDownloader {
     this.totalTiles = this.tiles.length
     this.cachedTiles = this.totalTiles - this.tilesToDownload.length
     this.areaDescription = `BBox: [${bbox.join(', ')}]`
-    this.maxZoom = maxZoom
   }
 
   public async initializeJobFromTile(
@@ -129,7 +126,6 @@ export class ChartDownloader {
     this.totalTiles = this.tiles.length
     this.cachedTiles = this.totalTiles - this.tilesToDownload.length
     this.areaDescription = `Tile: [${tile.x}, ${tile.y}, ${tile.z}]`
-    this.maxZoom = maxZoom
   }
 
   /**
@@ -506,13 +502,8 @@ export class ChartDownloader {
 
     const f = splitGeoFeature as Feature
     if (f.geometry && f.geometry.type === 'MultiPolygon') {
-      for (
-        let i = 0;
-        i < (f.geometry as MultiPolygon).coordinates.length;
-        i++
-      ) {
-        pushFeaturePolygon(f, (f.geometry as MultiPolygon).coordinates[i], i)
-      }
+      const coords = (f.geometry as MultiPolygon).coordinates
+      coords.forEach((ring, i) => pushFeaturePolygon(f, ring, i))
     } else if (f.geometry && f.geometry.type === 'Polygon') {
       features.push(f as Feature<Polygon>)
     }

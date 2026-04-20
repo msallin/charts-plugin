@@ -1,15 +1,13 @@
-'use strict'
-const chai = require('chai')
-const expect = chai.expect
-const {
+import { expect } from 'chai'
+import {
   WEB_MERCATOR_HALF_EXTENT_M,
   tileToBBox,
   lonLatToMercator
-} = require('../plugin/projection')
+} from '../src/projection'
 
 const WEB_MERCATOR_MAX_LAT = 85.0511287798066
 
-const approx = (actual, expected, tolerance = 1e-6) => {
+const approx = (actual: number, expected: number, tolerance = 1e-6) => {
   expect(
     Math.abs(actual - expected),
     `${actual} not within ${tolerance} of ${expected}`

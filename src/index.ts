@@ -38,7 +38,7 @@ const chartTilesPath = '/signalk/chart-tiles'
 const RELOAD_DEBOUNCE_MS =
   Number(process.env.SK_CHARTS_RELOAD_DEBOUNCE_MS) || 5000
 
-module.exports = (app: ChartProviderApp): Plugin => {
+const createPlugin = (app: ChartProviderApp): Plugin => {
   let chartProviders: { [key: string]: ChartProvider } = {}
   let pluginStarted = false
   let props: Config = {
@@ -51,8 +51,8 @@ module.exports = (app: ChartProviderApp): Plugin => {
   const configBasePath = app.config.configPath
   const defaultChartsPath = path.join(configBasePath, '/charts')
   const serverMajorVersion = app.config.version
-    ? parseInt(app.config.version.split('.')[0])
-    : '1'
+    ? parseInt(app.config.version.split('.')[0] ?? '0')
+    : 1
   ensureDirectoryExists(defaultChartsPath)
 
   let cachePath = defaultChartsPath
@@ -67,7 +67,7 @@ module.exports = (app: ChartProviderApp): Plugin => {
 
   // Check Node version for schema
   const nodeVersion = process.versions.node
-  const nodeMajorVersion = parseInt(nodeVersion.split('.')[0])
+  const nodeMajorVersion = parseInt(nodeVersion.split('.')[0] ?? '0')
 
   // ******** REQUIRED PLUGIN DEFINITION *******
   const CONFIG_SCHEMA = {
@@ -226,7 +226,7 @@ module.exports = (app: ChartProviderApp): Plugin => {
   const doStartup = (config: Config) => {
     // Check Node version
     const nodeVersion = process.versions.node
-    const majorVersion = parseInt(nodeVersion.split('.')[0])
+    const majorVersion = parseInt(nodeVersion.split('.')[0] ?? '0')
     if (majorVersion < 22) {
       const errorMsg = `Node version ${nodeVersion} is not supported. This plugin requires Node version 22 or higher. Please upgrade Node or install an older plugin version.`
       app.setPluginError(errorMsg)
@@ -432,6 +432,9 @@ module.exports = (app: ChartProviderApp): Plugin => {
       `${chartTilesPath}/:identifier/:z([0-9]*)/:x([0-9]*)/:y([0-9]*)`,
       async (req: Request, res: Response) => {
         const { identifier, z, x, y } = req.params
+        if (!identifier || !z || !x || !y) {
+          return res.sendStatus(404)
+        }
         const ix = parseInt(x)
         const iy = parseInt(y)
         const iz = parseInt(z)
@@ -461,6 +464,9 @@ module.exports = (app: ChartProviderApp): Plugin => {
       `${chartTilesPath}/cache/:identifier`,
       async (req: Request, res: Response) => {
         const { identifier } = req.params
+        if (!identifier) {
+          return res.sendStatus(404)
+        }
         const { regionGUID, tile, bbox, maxZoom } = req.body as {
           regionGUID?: string
           tile?: Tile // query params come in as strings
@@ -499,7 +505,7 @@ module.exports = (app: ChartProviderApp): Plugin => {
       }
     )
 
-    app.get(`${chartTilesPath}/cache/jobs`, (req: Request, res: Response) => {
+    app.get(`${chartTilesPath}/cache/jobs`, (_req: Request, res: Response) => {
       const jobs = Object.values(ChartSeedingManager.ActiveJobs).map((job) => {
         return job.info()
       })
@@ -510,23 +516,27 @@ module.exports = (app: ChartProviderApp): Plugin => {
       `${chartTilesPath}/cache/jobs/:id`,
       (req: Request, res: Response) => {
         const { id } = req.params
+        if (!id) {
+          return res.sendStatus(404)
+        }
         const { action } = req.body as { action: string }
         const parsedId = parseInt(id)
         const job = ChartSeedingManager.ActiveJobs[parsedId]
-        if (job && action) {
-          if (action === 'start') {
-            job.seedCache()
-          } else if (action === 'stop') {
-            job.cancelJob()
-          } else if (action === 'delete') {
-            job.deleteCache()
-          } else if (action === 'remove') {
-            delete ChartSeedingManager.ActiveJobs[parsedId]
-          } else {
-            return res.status(404).send(`Job ${parsedId} not found`)
-          }
-          return res.status(200).send(`Job ${parsedId} ${action}ed`)
+        if (!job || !action) {
+          return res.sendStatus(404)
         }
+        if (action === 'start') {
+          job.seedCache()
+        } else if (action === 'stop') {
+          job.cancelJob()
+        } else if (action === 'delete') {
+          job.deleteCache()
+        } else if (action === 'remove') {
+          delete ChartSeedingManager.ActiveJobs[parsedId]
+        } else {
+          return res.status(404).send(`Job ${parsedId} not found`)
+        }
+        return res.status(200).send(`Job ${parsedId} ${action}ed`)
       }
     )
 
@@ -536,6 +546,9 @@ module.exports = (app: ChartProviderApp): Plugin => {
       apiRoutePrefix[1] + '/charts/:identifier',
       (req: Request, res: Response) => {
         const { identifier } = req.params
+        if (!identifier) {
+          return res.sendStatus(404)
+        }
         const provider = chartProviders[identifier]
         if (provider) {
           return res.json(sanitizeProvider(provider))
@@ -545,7 +558,7 @@ module.exports = (app: ChartProviderApp): Plugin => {
       }
     )
 
-    app.get(apiRoutePrefix[1] + '/charts', (req: Request, res: Response) => {
+    app.get(apiRoutePrefix[1] + '/charts', (_req: Request, res: Response) => {
       const sanitized = _.mapValues(chartProviders, (provider) =>
         sanitizeProvider(provider)
       )
@@ -615,6 +628,8 @@ module.exports = (app: ChartProviderApp): Plugin => {
 
   return plugin
 }
+
+export = createPlugin
 
 const responseHttpOptions = {
   headers: {
